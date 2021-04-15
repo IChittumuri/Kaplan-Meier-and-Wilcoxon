@@ -1,0 +1,147 @@
+---
+title: "Kaplan Meier and Wilcoxon"
+author: "Isabella Chittumuri"
+date: "3/1/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+To answer the questions below, you will need to use a computer program (from SAS, Stata, SPSS, R or any other package you are familiar with) that computes and plots KM curves and computes the log–rank test.
+
+```{r}
+setwd("~/Documents/Hunter College/Spring 2021/Stat 755/HW")
+library(tidyverse)
+library(survival)
+library(survminer)
+```
+
+1. For the vets.dat data set described in the presentation:
+
+```{r}
+# get data
+data("veteran")
+?veteran
+```
+
+a. Obtain KM plots for the two categories of the variable cell type 1 (1 = large, 0 = other). Comment on how the two curves compare with each other. Carry out the log–rank, and draw conclusions from the test(s).
+
+```{r}
+# change celltype categories where 1 = large, 0 = other
+veteran$test <- ifelse(veteran$celltype == "large", 1,0)
+head(veteran)
+```
+
+We created a new column called test where 0 equals celltype:squamous, smallcell, and adeno (aka:other) and 1 equals celltype:large.
+
+```{r}
+# Kaplan-Meier plot
+fit <- survfit(Surv(time, status) ~ test, data = veteran)
+ggsurvplot(fit)  
+```
+
+Both the celltype:large curve (blue) and celltype:other curve (red) have similar survival probability slopes. However, celltype:large seems to have slightly higher survival probability over time than celltype:other. 
+
+Note celltype:large ends around time 500 whereas celltype:other continuous until time 1000. This may be due to that fact that celltype:other has more observed values.
+
+```{r}
+# log rank test for difference in survival
+surv_diff <- survdiff(Surv(time, status) ~ test, data = veteran)
+surv_diff
+```
+
+The log-rank test compares the observed number of events to the expected number of events in each group if the null hypothesis were true (i.e, if the survival curves were identical). In this case, since the resulting p-value of 0.08 is greater than alpha level 0.05, we fail to reject the null hypothesis which means that the survival curves are identical.
+
+b. Obtain KM plots for the four categories of cell type large, adeno, small, and squamous. Note that you will need to recode the data to define a single variable which numerically distinguishes the four categories (e.g., 1 = large, 2 = adeno, etc.). As in part a, compare the four KM curves. Also, carry out the log–rank for the equality of the four curves and draw conclusions.
+
+```{r include=FALSE}
+# change factor celltype to numeric
+veteran$celltype <- factor(veteran$celltype)
+veteran$celltype[1:137]
+veteran$celltype <- as.numeric(veteran$celltype)
+# 1=squamous, 2=smallcell, 3=adeno, 4=large
+```
+
+```{r}
+# Kaplan-Meier plot
+fit <- survfit(Surv(time, status) ~ celltype, data = veteran)
+ggsurvplot(fit)    
+```
+
+Squamous (celltype 1, red curve), smallcell (celltype 2, green curve), adeno (celltype 3, blue curve), large (celltype 4, purple curve)
+
+After separating each celltype into its own group, we see that squamous and large have similar curves while small cell and adeno also have similar curves. The KM plot shows that as time increases, survival probability for large and squamous cells is larger than that of small and adeno cells. This means that the former has a longer period of survival than the latter.
+
+```{r}
+# log rank test for difference in survival
+surv_diff <- survdiff(Surv(time, status) ~ celltype, data = veteran)
+surv_diff
+```
+
+After computing the log-rank test, we get a p-value of 1e-05 which is significantly lower than our alpha level of 0.05. This means that we can reject the null hypothesis that the four curves are similar.
+
+2. The following questions consider a data set from a study by Caplehorn et al. (“Methadone Dosage and Retention of Patients in Maintenance Treatment,” Med. J. Aust., 1991). These data comprise the times in days spent by heroin addicts from entry to departure from one of two methadone clinics. There are two fur- ther covariates, namely, prison record and methadone dose, believed to affect the survival times. The data set name is addicts.dat. A listing of the variables is given below:
+
+```{r}
+# get data
+df <- read.table("addicts.dat")
+addicts <- rename(df, subject_ID = V1, clinic = V2, status = V3, time = V4, prison_record = V5, methadone_dose = V6)
+head(addicts)
+```
+
+a. Compute and plot the KM plots for the two categories of the “clinic” variable and comment on the extent to which they differ.
+
+```{r}
+# Kaplan-Meier plot
+fit <- survfit(Surv(time, status) ~ clinic, data = addicts)
+ggsurvplot(fit)    
+```
+
+From the KM plot, we see that as time increases the survival rate for clinic 1 is much higher than that of clinic 2.
+
+b. A printout of the log–rank and Wilcoxon tests (using Stata) is provided below. What are your conclusions from this printout?
+
+```{r}
+# log rank test for difference in survival
+surv_diff <- survdiff(Surv(time, status) ~ clinic, data = addicts)
+surv_diff
+```
+
+Between group 1 and 2, their difference in observed values is 94 while their difference in expected values is 31.82. This suggests that the two curves have different hazard rates. 
+
+Since is the Wilcoxon test puts a higher weight on the earlier values of the model, its test statistic should be higher than that of the log-rank. However, in this case the Wilcoxon test statistic is lower than the log-rank. From this observation, we know that the difference in curves is more evident in the later stage.
+
+The p-value for Wilcoxon is slightly higher than that of log-rank, suggesting that the log-rank is more significant. However, the p-value for both tests are lower than the alpha level of 0.05, which mean that we can reject null hypothesis that the two survival curves are similar.
+
+c. Compute and evaluate KM curves and the log–rank test for comparing suitably chosen categories of the variable “Methadone dose.” Explain how you deter- mined the categories for this variable.
+
+```{r}
+# get mean
+summary(addicts)
+
+# create groups of 3
+# addicts <- addicts %>% mutate(group = ifelse(methadone_dose <= 50, 1, ifelse((methadone_dose > 50 & methadone_dose <= 70), 2, 3)))
+
+# create groups of 2
+addicts <- addicts %>% mutate(group = ifelse(methadone_dose <= 60, 1, 2))
+addicts
+
+# count groups
+addicts %>% count(group)
+
+# Kaplan-Meier plot
+fit <- survfit(Surv(time, status) ~ group, data = addicts)
+ggsurvplot(fit)    
+```
+
+We separated the Methadone dose into 3 groups where group 1 has values within the 1st quantile (<=50), group 2 has values of the 2 quantile (>50 & <=70) and group 3 has values of the 3 quantile (<70).
+
+From the KM plot, we see that group 1 and 2 have similar survival curves with steep slopes while group 3 has a higher survival curve with little steepness in slope. This means that as time increases, methadone dose values of less than 70 have a lower survival rate than that of dose values higher than 70. In conclusion, the higher the methadone dose values, the higher chance of survival.
+
+# Notes
+0.05 alpha level Chisq test is testing for if the curves are similar. p<0.05 = reject null # want to reject null because it shows that the two curves are different. p>0.05 = fail to reject null
+
+Higher test statistic = more significant
+Lower p-value = more significant
